@@ -1,0 +1,18 @@
+# runtime / per-machine files
+config.json
+location_override.json
+location.json
+weather.json
+device.cache
+watch.log
+watch.log.1
+watch.stop
+buddy.lock
+job/
+tools/out/
+tools/job.zip
+__pycache__/
+*.pyc
+*.mp3
+.DS_Store
+Thumbs.db
