@@ -115,7 +115,7 @@ public static class Scene {
     if(!night && tod=="morning" && !noWx) for(int y=118;y<W;y++) for(int x=0;x<W;x++){ int i=(y*W+x)*3; sky[i]=(byte)((sky[i]+230)/2); sky[i+1]=(byte)((sky[i+1]+150)/2); sky[i+2]=(byte)((sky[i+2]+120)/2);} 
     if(!night && tod=="evening" && !noWx) for(int y=116;y<W;y++) for(int x=0;x<W;x++){ int i=(y*W+x)*3; sky[i]=(byte)((sky[i]+240)/2); sky[i+1]=(byte)((sky[i+1]+110)/2); sky[i+2]=(byte)((sky[i+2]+70)/2);} 
     if(clouds){ double dk=night?0.45:1.0; Func<int,int> c=v=>(int)(v*dk);
-      if(wx=="cloudy"){ CloudBand(sky,13,sh,11,4,c(180),c(186),c(198),0.55,14); CloudBand(sky,40,0,12,4,c(205),c(210),c(220),0.6,12); CloudBand(sky,110,0,13,5,c(225),c(228),c(235),0.7,12); }
+      if(wx=="cloudy"){ CloudBand(sky,13,sh,11,4,c(180),c(186),c(198),0.55,14); if(RainDrops>-2){ CloudBand(sky,40,0,12,4,c(205),c(210),c(220),0.6,12); CloudBand(sky,110,0,13,5,c(225),c(228),c(235),0.7,12); } } // RainDrops<=-2: calm last-resort, one soft cloud band
       else if(wx=="rain"){ CloudBand(sky,8,sh,21,5,c(60),c(66),c(80),0.85,18); CloudBand(sky,28,0,22,5,c(80),c(86),c(100),0.8,15); }
       else if(wx=="storm"){ CloudBand(sky,6,sh,31,5,c(34),c(38),c(50),0.9,18); CloudBand(sky,26,0,32,5,c(50),c(54),c(68),0.85,15); }
       else { CloudBand(sky,10,sh,41,4,c(200),c(208),c(222),0.6,15); } }

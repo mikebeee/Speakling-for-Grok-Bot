@@ -11,6 +11,8 @@ Grok Bot's face: it idles softly on the MiniToo's 128x128 screen, moves its mout
 |---|---|---|---|
 | <picture><source srcset="docs/images/sunny_idle_plain.avif" type="image/avif"><img src="docs/images/sunny_idle_plain.gif" alt="idle" width="256"></picture> | <picture><source srcset="docs/images/talk_day_rain_talk.avif" type="image/avif"><img src="docs/images/talk_day_rain_talk.gif" alt="talk" width="256"></picture> | <picture><source srcset="docs/images/snow_idle.avif" type="image/avif"><img src="docs/images/snow_idle.gif" alt="snow" width="256"></picture> | <picture><source srcset="docs/images/christmas_idle.avif" type="image/avif"><img src="docs/images/christmas_idle.gif" alt="christmas" width="256"></picture> |
 
+[![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/mikebeee)
+
 ## Features (designed to be cozy: soft light, gentle motion, nothing jarring)
 - **Idle animations** - glances, blinks, antenna sparkle, a happy bounce, a curious head tilt.
 - **Lip-sync talking** - listens to the PC's default audio output and animates the mouth by loudness
