@@ -36,18 +36,21 @@ Grok Bot's face: it idles softly on the MiniToo's 128x128 screen, moves its mout
 - Optional, for `tools/buddy.py` only: Python 3.9+, `pip install pillow numpy zstandard edge-tts`, and ffmpeg.
 
 ## Quick start
+You need a **Divoom MiniToo** and a **Windows 10 or 11 PC with Bluetooth**.
 1. Pair the MiniToo: Settings > Bluetooth & devices > Add device > Bluetooth > *Divoom MiniToo-Audio*.
    Close the Divoom phone app (the speaker allows only one connection).
-2. Download the latest release zip from **Releases** and unzip it.
+2. Download the latest release zip from **Releases** (or **Code > Download ZIP** until the first release) and unzip it.
 3. In that folder run:
    ```powershell
    powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
    ```
-   This copies the files to `%LOCALAPPDATA%\Speakling`, finds the speaker by name, registers the
-   **Speakling Watcher** scheduled task (starts at log-on, restarts itself) and starts it.
-4. Play any sound - the buddy should start talking.
+   This copies the files to `%LOCALAPPDATA%\Speakling`, finds the speaker by name, sets Speakling to start
+   when you sign in to Windows, and starts it.
+4. Allow location for local weather: Settings > Privacy & security > Location, turn on **Location services**
+   and **Let desktop apps access your location**.
+5. Play any sound - the buddy should start talking.
 
-Full guide, configuration and every flag: [docs/SETUP.md](docs/SETUP.md).
+Step by step install guide, settings and every flag: [docs/SETUP.md](docs/SETUP.md). Questions or ideas: use the **Discussions** tab.
 
 ## Stop, disable, uninstall
 ```powershell
@@ -67,7 +70,7 @@ Unregister-ScheduledTask 'Speakling Watcher' -Confirm:$false                    
 - **Clip size limit** - the device accepts about 13.5 KB per clip; the scene builder automatically falls
   back to calmer variants (less motion, fewer raindrops) to fit.
 - **Wrong speaker / not found** - set `bt_address` in `config.json` (format `AA:BB:CC:DD:EE:FF`).
-- **Wrong weather place** - copy `location_override.example.json` to `location_override.json` and edit it.
+- **Wrong weather place** - turn on Settings > Privacy & security > Location, including **Let desktop apps access your location**.
 
 ## Privacy
 Your location is used only to pick the weather and state holiday. It comes from Windows Location (only
