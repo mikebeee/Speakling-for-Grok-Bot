@@ -1,5 +1,8 @@
-param([string]$Holiday='auto',[string]$State='',[string]$AsOf='',[switch]$NoHoliday,[string]$Costume='auto',[int]$GagMinMinutes=60,[int]$GagMaxMinutes=180,[switch]$NoGag,[switch]$GagNow,[int]$Seconds=0,[switch]$Forever,[double]$On=0.02,[int]$OffMs=900,[switch]$Dry,[string]$Talk=(Join-Path $PSScriptRoot 'assets\talkloop.bin'),[string]$Idle=(Join-Path $PSScriptRoot 'assets\idle.bin'),[string]$Log=(Join-Path $PSScriptRoot 'watch.log'),[string]$Lock=(Join-Path $PSScriptRoot 'buddy.lock'),[int]$RetryMs=15000,[string]$Bored=(Join-Path $PSScriptRoot 'assets\boredloop.bin'),[int]$BoredAfterSeconds=300,[int]$StampMinutes=5,[switch]$NoScene,[switch]$NoStamp,[switch]$NoTod,[switch]$NoWeather,[string]$Lat='',[string]$Lon='',[int]$LocateHours=3,[int]$WeatherMinutes=15,[string]$ForceTod='',[string]$ForceWx,[string]$ForceSum='',[string]$Dir=$PSScriptRoot,[string]$BtAddress='')
+param([string]$Holiday='auto',[string]$State='',[string]$AsOf='',[switch]$NoHoliday,[string]$Costume='auto',[int]$GagMinMinutes=60,[int]$GagMaxMinutes=180,[switch]$NoGag,[switch]$GagNow,[int]$Seconds=0,[switch]$Forever,[double]$On=0.02,[int]$OffMs=900,[switch]$Dry,[string]$Talk=(Join-Path $PSScriptRoot 'assets\talkloop.bin'),[string]$Idle=(Join-Path $PSScriptRoot 'assets\idle.bin'),[string]$Log=(Join-Path $PSScriptRoot 'watch.log'),[string]$Lock=(Join-Path $PSScriptRoot 'buddy.lock'),[int]$RetryMs=15000,[string]$Bored=(Join-Path $PSScriptRoot 'assets\boredloop.bin'),[int]$BoredAfterSeconds=300,[int]$StampMinutes=5,[switch]$NoScene,[switch]$NoStamp,[switch]$NoTod,[switch]$NoWeather,[int]$LocateMinutes=60,[int]$WeatherMinutes=15,[string]$ForceTod='',[string]$ForceWx,[string]$ForceSum='',[string]$Dir=$PSScriptRoot,[string]$BtAddress='',[string]$DevLocation='')
 # Seconds<=0 or -Forever = run indefinitely
+# -DevLocation is a DEVELOPER TEST HOOK ONLY (not a user setting, not documented for users): 'denied',
+#   'unavailable' or 'lat,lon' replaces the Windows Location answer so the decision paths can be tested.
+$SpeaklingVersion='1.0.1'
 $ErrorActionPreference='Stop'
 $mtx=New-Object System.Threading.Mutex($false,'Local\MiniTooSpeakWatcher')
 if(-not $mtx.WaitOne(0)){ Write-Output 'another watcher is running, exiting'; exit 3 }
@@ -51,45 +54,30 @@ function LockOn(){ if(-not (Test-Path $Lock)){ return $false }; try{ return ((Ge
 $sw=[Diagnostics.Stopwatch]::StartNew()
 $talkPk=Pk $Talk; $idlePk=Pk $Idle; $boredPk=$null; if(Test-Path $Bored){ $boredPk=Pk $Bored }
 [Meter]::Init(); $meterAt=0
-$locTag=''; $ovf=Join-Path $Dir 'location_override.json'; if(-not $Lat -and -not $Lon -and (Test-Path $ovf)){ try{ $o=Get-Content $ovf -Raw | ConvertFrom-Json; if($o.lat -ne $null -and $o.lon -ne $null){ $ic1=[Globalization.CultureInfo]::InvariantCulture; $Lat=([double]$o.lat).ToString($ic1); $Lon=([double]$o.lon).ToString($ic1); if($o.state -and -not $State){ $State=[string]$o.state } } } catch {} }; if($Lat -and $Lon){ $locTag="fixed:$Lat,$Lon" }
-$scene=$false; $sceneCache=@{}; $shownKey=''; $wx=''; $wxJob=$null; $wxNext=0; $wxFile=Join-Path $Dir 'weather.json'; $wxErr=''; $wxSum=''; $usState=''; $gagRaw=$null; $gagAt=-1; $gagUntil=0; $gagNowPending=[bool]$GagNow
+$scene=$false; $sceneCache=@{}; $shownKey=''; $wx=''; $wxJob=$null; $wxJobAt=0; $wxNext=0; $wxSum=''; $usState=''; $gagRaw=$null; $gagAt=-1; $gagUntil=0; $gagNowPending=[bool]$GagNow
 if(-not $NoScene){ try{ Add-Type -Path (Join-Path $Dir 'scene.cs'); $zv=[Scene]::Init((Join-Path $Dir 'libzstd.dll')); $idleRaw=[IO.File]::ReadAllBytes((Join-Path $Dir 'assets\idle_raw.bin')); $boredRaw=[IO.File]::ReadAllBytes((Join-Path $Dir 'assets\bored_raw.bin')); $talkRaw=[IO.File]::ReadAllBytes((Join-Path $Dir 'assets\talk_raw.bin')); $gp=Join-Path $Dir 'assets\gag_raw.bin'; if(-not $NoGag -and (Test-Path $gp)){ $gagRaw=[IO.File]::ReadAllBytes($gp) }; $scene=$true; L "scene on (zstd $zv) stamp=$(-not $NoStamp)/$StampMinutes min tod=$(-not $NoTod) weather=$(-not $NoWeather)" } catch { L ('scene unavailable, using static clips: '+$_.Exception.Message) } }
-if($locTag){ L "location override: $locTag state=$State" | Out-Null }
-if($scene -and -not $NoWeather){ try{ $c=Get-Content $wxFile -Raw | ConvertFrom-Json; if(((Get-Date)-[datetime]$c.at).TotalHours -lt 3 -and ([string]$c.loc -eq $locTag)){ $wx=$c.wx; if($c.sum){ $wxSum=$c.sum }; if($c.st){ $usState=$c.st }; L "weather cache: $wx (code $($c.code), $($c.at))" } } catch {} }
-function WxMap($c){ $c=[int]$c; if($c -le 1){'clear'} elseif($c -le 3){'cloudy'} elseif($c -eq 45 -or $c -eq 48){'fog'} elseif(($c -ge 51 -and $c -le 67) -or ($c -ge 80 -and $c -le 82)){'rain'} elseif(($c -ge 71 -and $c -le 77) -or $c -eq 85 -or $c -eq 86){'snow'} elseif($c -ge 95){'storm'} else {'cloudy'} }
-function WxSum($c,$tp,$pp,$u){ $c=[int]$c; $h=(Get-Date).Hour; $nt=($h -ge 20 -or $h -lt 5)
-  $w= if($c -le 1){ if($nt){'CLEAR'}else{'SUNNY'} } elseif($c -eq 2){'PT CLOUDY'} elseif($c -eq 3){'CLOUDY'} elseif($c -eq 45 -or $c -eq 48){'FOG'} elseif($c -ge 51 -and $c -le 57){'DRIZZLE'} elseif($c -ge 80 -and $c -le 82){'SHOWERS'} elseif($c -ge 58 -and $c -le 67){'RAIN'} elseif(($c -ge 71 -and $c -le 77) -or $c -eq 85 -or $c -eq 86){'SNOW'} elseif($c -ge 95){'STORMS'} else {'CLOUDY'}
-  $l2=''; if($null -ne $tp){ $l2=([string][Math]::Round([double]$tp))+$u }; if($null -ne $pp -and [int]$pp -ge 10){ $l2=($l2+' '+[int]$pp+'%').Trim() }
-  $w+'~'+$l2 }
+. (Join-Path $PSScriptRoot 'geo.ps1'); $wxS=New-WxState
+# Weather: location from Windows Location only, a fresh Open-Meteo reading on every launch (nothing is
+# loaded from disk), neutral sky until the first reading and whenever readings go stale.
 function WxPoll($now){
   if($NoWeather -or -not $scene){ return }
+  $t=Get-Date
+  if($wxJob -and $wxJob.State -eq 'Running' -and ($now-$script:wxJobAt) -gt 180000){ L 'weather job hung > 3 min, stopping it'; Stop-Job $wxJob -ErrorAction SilentlyContinue }
   if($wxJob -and $wxJob.State -ne 'Running'){
-    try{ $res=Receive-Job $wxJob -ErrorAction Stop; $code=$res.code; if($null -eq $code){ throw 'no weather_code' }
-         $new=WxMap $code; if($new -ne $script:wx){ L "weather: $new (code $code, place: $($res.city) via $($res.src))" }; $script:wx=$new; $script:wxErr=''; $sum=WxSum $code $res.temp $res.pop $res.unit; if($sum -ne $script:wxSum){ L "weather summary: $sum (temp=$($res.temp)$($res.unit) pop=$($res.pop)%)" }; $script:wxSum=$sum
-         $ns=$res.st; if($script:State){ $ns=$script:State.ToUpper() }; if(-not $ns -and $res.cc -eq 'US'){ $ns=StateFromLatLon $res.lat $res.lon }; if($res.cc -and $res.cc -ne 'US'){ $ns='' }; if($ns -ne $script:usState){ L "location state: $ns (cc $($res.cc))" }; $script:usState=$ns
-         @{wx=$new;code=$code;sum=$sum;st=$script:usState;loc=$script:locTag;at=(Get-Date).ToString('o')} | ConvertTo-Json | Set-Content $wxFile }
-    catch { $m=$_.Exception.Message; if($m -ne $script:wxErr){ L "weather fetch failed ($m); keeping '$($script:wx)'"; $script:wxErr=$m } }
-    Remove-Job $wxJob -Force; $script:wxJob=$null }
+    $r=$null; try{ $r=Receive-Job $wxJob -ErrorAction Stop | Select-Object -Last 1 } catch { $r=[pscustomobject]@{planMode='';err=('weather job error: '+$_.Exception.Message)} }
+    Remove-Job $wxJob -Force; $script:wxJob=$null
+    $d=Update-WxState $script:wxS $r $t $WeatherMinutes ([Math]::Max(30,2*$WeatherMinutes))
+    foreach($m in $script:wxS.log){ L $m }; $script:wxS.log.Clear()
+    $script:wx=$script:wxS.wx; $script:wxSum=$script:wxS.sum; $script:usState=$script:wxS.st
+    $script:wxNext=$now+[int64]$d*1000 }
+  if($script:wxS.at -and ($t-$script:wxS.at).TotalMinutes -gt [Math]::Max(30,2*$WeatherMinutes)){ Clear-WxReading $script:wxS 'last reading too old'; foreach($m in $script:wxS.log){ L $m }; $script:wxS.log.Clear(); $script:wx=''; $script:wxSum='' }
   if(-not $wxJob -and $now -ge $script:wxNext){
-    $script:wxJob=Start-Job -ArgumentList $Lat,$Lon,(Join-Path $Dir 'location.json'),$LocateHours,$script:wxErr -ScriptBlock { param($lat,$lon,$lf,$hrs,$prevErr)
-      $ErrorActionPreference='Stop'; $loc=$null
-      if($lat -and $lon){ $loc=@{lat=[double]$lat;lon=[double]$lon;city='fixed';src='param'} }
-      if(-not $loc -and -not $prevErr){ try{ $c=Get-Content $lf -Raw | ConvertFrom-Json; if(((Get-Date)-[datetime]$c.at).TotalHours -lt $hrs){ $loc=@{lat=$c.lat;lon=$c.lon;city=$c.city;src=$c.src+'(cache)';cc=$c.cc;st=$c.st} } } catch {} }
-      if(-not $loc){ try{ Add-Type -AssemblyName System.Device; $w=New-Object System.Device.Location.GeoCoordinateWatcher
-          if($w.Permission -eq 'Granted' -and $w.TryStart($true,[TimeSpan]::FromSeconds(8))){ $end=(Get-Date).AddSeconds(8); while($w.Position.Location.IsUnknown -and (Get-Date) -lt $end){ Start-Sleep -Milliseconds 300 }
-            $p=$w.Position.Location; if(-not $p.IsUnknown){ $loc=@{lat=$p.Latitude;lon=$p.Longitude;city='';src='windows'} } }; $w.Stop() } catch {} }
-      if(-not $loc){ try{ $g=Invoke-RestMethod -Uri 'https://ipwho.is/?fields=success,city,region,region_code,latitude,longitude,country_code' -TimeoutSec 10; if($g.success){ $loc=@{lat=$g.latitude;lon=$g.longitude;city=($g.city+', '+$g.region);src='ip';cc=$g.country_code;st=$g.region_code} } } catch {} }
-      if(-not $loc){ try{ $c=Get-Content $lf -Raw | ConvertFrom-Json; $loc=@{lat=$c.lat;lon=$c.lon;city=$c.city;src='stale-cache';cc=$c.cc} } catch { throw 'no location (location service off, IP lookup failed, no cache)' } }
-      $ic=[Globalization.CultureInfo]::InvariantCulture; $la=[Math]::Round([double]$loc.lat,2).ToString($ic); $lo=[Math]::Round([double]$loc.lon,2).ToString($ic)
-      if(-not $loc.st -and $loc.src -notlike '*cache*'){ try{ $ic0=[Globalization.CultureInfo]::InvariantCulture; $rg=Invoke-RestMethod -Uri ('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude='+([double]$loc.lat).ToString($ic0)+'&longitude='+([double]$loc.lon).ToString($ic0)+'&localityLanguage=en') -TimeoutSec 10; if($rg.countryCode){ $loc.cc=$rg.countryCode }; if($rg.principalSubdivisionCode -match '^US-([A-Z]{2})$'){ $loc.st=$Matches[1] } } catch {} }
-      if($loc.src -in 'windows','ip'){ @{lat=[double]$la;lon=[double]$lo;city=$loc.city;src=$loc.src;cc=$loc.cc;st=$loc.st;at=(Get-Date).ToString('o')} | ConvertTo-Json | Set-Content $lf }
-      $cc=$loc.cc; if(-not $cc){ $cc=[Globalization.RegionInfo]::CurrentRegion.TwoLetterISORegionName }; $us= $cc -in 'US','LR','MM'
-      $u='https://api.open-meteo.com/v1/forecast?latitude='+$la+'&longitude='+$lo+'&current=weather_code,is_day,temperature_2m&hourly=precipitation_probability&forecast_hours=1&timezone=auto'+$(if($us){'&temperature_unit=fahrenheit'}else{''})
-      $res=Invoke-RestMethod -Uri $u -TimeoutSec 15; $pp=$null; try{ $pp=$res.hourly.precipitation_probability[0] } catch {}
-      [pscustomobject]@{lat=[double]$loc.lat;lon=[double]$loc.lon;cc=$cc;st=$loc.st;code=$res.current.weather_code;city=$loc.city;src=$loc.src;temp=$res.current.temperature_2m;pop=$pp;unit=$(if($us){'F'}else{'C'})} }
-    $script:wxNext=$now+[int64]$WeatherMinutes*60000 } }
+    $loc=Test-NeedLocate $script:wxS $t $LocateMinutes; $known=Get-KnownLocation $script:wxS $t
+    $script:wxJob=Start-Job -ArgumentList (Join-Path $Dir 'geo.ps1'),(Join-Path $Dir 'assets\us_states.txt'),$known,$loc,$DevLocation -ScriptBlock { param($geo,$states,$known,$locate,$dev)
+      $ErrorActionPreference='Stop'; . $geo; Invoke-WeatherCycle $known $locate $dev $states }
+    $script:wxJobAt=$now; $script:wxNext=[int64]::MaxValue } }
 function SceneKey($state){ $d=Get-Date
-  $tod=''; if(-not $NoTod){ $h=$d.Hour; $tod= if($h -ge 5 -and $h -lt 11){'morning'} elseif($h -lt 17 -and $h -ge 11){'day'} elseif($h -ge 17 -and $h -lt 20){'evening'} else {'night'}; if($ForceTod){$tod=$ForceTod} }
+  $tod=''; if(-not $NoTod){ $h=$d.Hour; $tod= if($h -ge 5 -and $h -lt 11){'morning'} elseif($h -lt 17 -and $h -ge 11){'day'} elseif($h -ge 17 -and $h -lt 20){'evening'} else {'night'}; if($script:wxS -and $null -ne $script:wxS.isDay -and "$($script:wxS.isDay)" -ne ''){ if([int]$script:wxS.isDay -eq 0){ $tod='night' } elseif($tod -eq 'night'){ $tod='evening' } }; if($ForceTod){$tod=$ForceTod} }
   $w=''; if(-not $NoWeather){ $w=$script:wx; if($ForceWx){$w=$ForceWx} }
   $l1=''; $l2=''; if(-not $NoStamp -and $w -and $script:wxSum){ $s=$script:wxSum.Split('~'); $l1=$s[0]; $l2=$s[1] }; if($ForceSum){ $s=$ForceSum.Split('~'); $l1=$s[0]; $l2=$s[1] }
   $ck=''; if(-not $NoStamp){ $ck=$d.ToString('h:mm tt',[Globalization.CultureInfo]::InvariantCulture) }
@@ -106,7 +94,7 @@ function GetPk($state,$mark=$true){ if(-not $scene){ if($state -eq 'bored'){ ret
   [Scene]::NoMotion=$false; [Scene]::DriftStep=2; [Scene]::RainDrops=14; $l=New-Object 'System.Collections.Generic.List[byte[]]'; foreach($q in $pk){$l.Add($q)}; $arr=$l.ToArray()
   if($sceneCache.Count -gt 30){ $sceneCache.Clear() }; $sceneCache[$k]=$arr; if($mark){ $script:shownKey=$k }; L ("scene $k payload="+[Scene]::LastPayload+" fit="+$fit) | Out-Null; return ,$arr }
 $indef = $Forever -or ($Seconds -le 0); $end=[int64]$Seconds*1000
-L ("start pid=$PID indefinite=$indef dry=$Dry talk pk="+$talkPk.Count+" idle pk="+$idlePk.Count+" bored pk="+$(if($boredPk){$boredPk.Count}else{0})+" boredAfter=$BoredAfterSeconds"+" peak="+[Meter]::Peak())
+L ("Speakling v$SpeaklingVersion start pid=$PID indefinite=$indef dry=$Dry talk pk="+$talkPk.Count+" idle pk="+$idlePk.Count+" bored pk="+$(if($boredPk){$boredPk.Count}else{0})+" boredAfter=$BoredAfterSeconds"+" peak="+[Meter]::Peak())
 $conn=$false; $nextTry=0; $lastErr=''; $lastErrAt=-1000000; $paused=$false
 $talking=$false; $lastLoud=0; $loudSince=-1; $isBored=$false; $idleAt=0
 try{

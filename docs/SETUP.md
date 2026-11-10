@@ -15,8 +15,8 @@ This guide takes you from an unopened speaker to a talking buddy in about 10 min
    The buddy lip-syncs to whatever your *default output* device plays.
 
 ## 2. Download Speakling
-- When a release is published: open the repo's **Releases** page and download the latest `.zip`.
-- Until then (or for the newest code): on the repo's main page click **Code > Download ZIP**.
+Open the repo's [Releases](https://github.com/mikebeee/Speakling-for-Grok-Bot/releases/latest) page and download
+the latest `Speakling-for-Grok-Bot-vX.Y.Z.zip` (under **Assets**).
 
 Right-click the downloaded zip, choose **Extract All**, and open the extracted folder.
 
@@ -30,21 +30,31 @@ The installer:
 - finds your speaker by name and prints `Found MiniToo at ...` (a warning means the speaker isn't paired yet; pair it and run the installer again),
 - sets Speakling to **start automatically when you sign in to Windows**, and starts it right away.
 
+Upgrading from an older version: run the new installer the same way. It stops the running copy, replaces the
+files, removes leftovers from older versions (`location_override.json`, `location.json`, `weather.json`) and
+starts the new one. Your `config.json` is kept.
+
 Installer options: `-InstallDir <path>`, `-NoTask` (copy only, no start at sign in), `-NoStart`
 (set up start at sign in but don't start now), `-TaskName <name>` (default `Speakling Watcher`).
 
 ## 4. Allow location (for correct local weather)
 Speakling uses Windows' own location service to show the weather where you actually are. There is
-nothing to type in.
-1. Open **Settings > Privacy & security > Location**.
-2. Turn on **Location services**.
-3. Turn on **Let desktop apps access your location**.
+nothing to type in and no location setting in Speakling.
+- If Windows pops up asking whether to let PowerShell or desktop apps use your location, choose **Allow**.
+- If it doesn't ask, open **Settings > Privacy & security > Location** and turn on **Location services** and
+  **Let desktop apps access your location**.
 
-That's it. If location stays off, the buddy still works; the weather just won't match your area.
+If you block location, the buddy still works, but it shows the weather for **Spring, TX** instead of yours.
+Turn location back on any time; Speakling notices within about 15 minutes.
+If location is allowed but Windows hasn't found you yet (right after sign-in, or a PC with no Wi-Fi), the
+buddy shows a plain sky with no weather and keeps retrying, rather than guessing.
 
 ## 5. First-time check
 1. Play any sound on the PC (a video, a song, or a Grok Bot read-aloud reply). The buddy's mouth should move.
 2. Within a minute or so the background should match your weather and the corner clock should show your time.
+   Until the first fresh reading arrives the sky is plain, with no weather text. In `watch.log`, a
+   `location: Windows Location` line means your real location is used; `permission denied -> Spring, TX` means
+   location is blocked (see step 4).
 3. Leave it quiet for 5 minutes and you'll see the bored face; that means everything is running.
 
 If nothing happens, open `%LOCALAPPDATA%\Speakling\watch.log`. **"MiniToo not reachable"** means the speaker is
@@ -80,8 +90,11 @@ cd $env:LOCALAPPDATA\Speakling
 .\watch_speak.ps1 -Seconds 120 -Holiday christmas -ForceWx snow -GagNow
 ```
 Useful flags: `-NoWeather -NoTod -NoStamp -NoScene -NoGag -NoHoliday`, `-Holiday <name|none|st-XX>`,
-`-State XX`, `-AsOf yyyy-mm-dd`, `-BoredAfterSeconds 300`, `-GagMinMinutes 60 -GagMaxMinutes 180`,
-`-WeatherMinutes 15`, `-BtAddress AA:BB:CC:DD:EE:FF`. Log: `watch.log`.
+`-State XX` (preview a state holiday), `-AsOf yyyy-mm-dd`, `-BoredAfterSeconds 300`,
+`-GagMinMinutes 60 -GagMaxMinutes 180`, `-WeatherMinutes 15`, `-LocateMinutes 60`,
+`-ForceWx clear|cloudy|rain|storm|fog|snow`, `-ForceTod morning|day|evening|night`,
+`-BtAddress AA:BB:CC:DD:EE:FF`. Log: `watch.log`.
+Unit tests (no speaker needed): `powershell -NoProfile -ExecutionPolicy Bypass -File tests\test_geo.ps1`.
 
 ## Advanced: the startup task in detail
 `install.ps1` registers **Speakling Watcher** (at log-on, current user). It runs `run_watch.ps1`,

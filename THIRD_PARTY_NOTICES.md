@@ -12,8 +12,10 @@
 
 ## Services used at runtime (no code bundled)
 - Open-Meteo (https://open-meteo.com) - weather, keyless, CC BY 4.0 data. "Weather data by Open-Meteo.com".
-- ipwho.is - approximate city-level location from public IP (only if no override / Windows location).
-- BigDataCloud reverse-geocode-client - US state lookup for state observances (only if needed).
+
+## US state outlines (assets/us_states.txt)
+- Simplified from the US Census Bureau 2023 Cartographic Boundary File `cb_2023_us_state_20m` (public domain,
+  US Government work). Used offline to find the US state for state observances; no web lookup.
 
 ## Trademarks
 Divoom and MiniToo are trademarks of their owners. Grok is a trademark of its owner. This project is

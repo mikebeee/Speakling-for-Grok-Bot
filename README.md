@@ -19,8 +19,10 @@ Grok Bot's face: it idles softly on the MiniToo's 128x128 screen, moves its mout
   whenever anything plays, so Grok Bot's read-aloud and voice replies "come from" the buddy.
 - **Bored face** after 5 minutes of silence (`-BoredAfterSeconds`).
 - **Time of day** - morning, day, evening and night (stars and moon) looks from the PC clock.
-- **Live weather** from keyless [Open-Meteo](https://open-meteo.com): sunny, cloudy, rain, storm, fog, snow
-  backdrops plus a small summary line (e.g. `RAIN 67F 81%`).
+- **Live weather** for where you are, from keyless [Open-Meteo](https://open-meteo.com): sunny, cloudy, rain,
+  storm, fog, snow backdrops plus a small summary line (e.g. `RAIN 67F 81%`). Your location comes from
+  Windows Location automatically; there is nothing to set up. A fresh reading is fetched every time
+  Speakling starts and every 15 minutes.
 - **Clock** - small HH:MM in the corner, refreshed every minute.
 - **Birds** drift by every few minutes, and a rare (every 1-3 h) bird gag with a rainbow-colored spray finish
   (`-NoGag` to turn it off).
@@ -32,22 +34,24 @@ Grok Bot's face: it idles softly on the MiniToo's 128x128 screen, moves its mout
 ## Requirements
 - Windows 10 or 11 with Bluetooth, Windows PowerShell 5.1 (built in).
 - A Divoom MiniToo, paired in Windows (shows as **Divoom MiniToo-Audio**).
-- Internet for weather (optional).
+- Internet for weather (optional), and Windows Location turned on for local weather.
 - Optional, for `tools/buddy.py` only: Python 3.9+, `pip install pillow numpy zstandard edge-tts`, and ffmpeg.
 
 ## Quick start
 You need a **Divoom MiniToo** and a **Windows 10 or 11 PC with Bluetooth**.
 1. Pair the MiniToo: Settings > Bluetooth & devices > Add device > Bluetooth > *Divoom MiniToo-Audio*.
    Close the Divoom phone app (the speaker allows only one connection).
-2. Download the latest release zip from **Releases** (or **Code > Download ZIP** until the first release) and unzip it.
+2. Download the latest `Speakling-for-Grok-Bot-vX.Y.Z.zip` from the [Releases](https://github.com/mikebeee/Speakling-for-Grok-Bot/releases/latest) page and unzip it.
 3. In that folder run:
    ```powershell
    powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
    ```
    This copies the files to `%LOCALAPPDATA%\Speakling`, finds the speaker by name, sets Speakling to start
-   when you sign in to Windows, and starts it.
-4. Allow location for local weather: Settings > Privacy & security > Location, turn on **Location services**
-   and **Let desktop apps access your location**.
+   when you sign in to Windows, and starts it. Upgrading? Just run the new installer; it stops the old copy first.
+4. Allow location for local weather: if Windows asks whether to let PowerShell / desktop apps use your
+   location, choose **Allow**. Otherwise open Settings > Privacy & security > Location and turn on
+   **Location services** and **Let desktop apps access your location**. If location is blocked, the buddy
+   shows the weather for Spring, TX instead.
 5. Play any sound - the buddy should start talking.
 
 Step by step install guide, settings and every flag: [docs/SETUP.md](docs/SETUP.md). Questions or ideas: use the **Discussions** tab.
@@ -70,18 +74,23 @@ Unregister-ScheduledTask 'Speakling Watcher' -Confirm:$false                    
 - **Clip size limit** - the device accepts about 13.5 KB per clip; the scene builder automatically falls
   back to calmer variants (less motion, fewer raindrops) to fit.
 - **Wrong speaker / not found** - set `bt_address` in `config.json` (format `AA:BB:CC:DD:EE:FF`).
-- **Wrong weather place** - turn on Settings > Privacy & security > Location, including **Let desktop apps access your location**.
+- **Weather is for Spring, TX** - location is blocked. Turn on Settings > Privacy & security > Location, including
+  **Let desktop apps access your location**; Speakling picks it up within 15 minutes.
+- **No weather on the screen** - Windows has not given a location yet (it can take a minute after sign-in, or the PC
+  has no Wi-Fi to locate with) or the weather service is unreachable. Speakling keeps retrying and shows a plain sky
+  meanwhile; `watch.log` says which (`location:` and `weather:` lines).
 
 ## Privacy
-Your location is used only to pick the weather and state holiday. It comes from Windows Location (only
-if you already allowed it), or an approximate city-level lookup of your public IP (ipwho.is), or your
-`location_override.json`. Rounded coordinates are sent to Open-Meteo (and, for US state, BigDataCloud).
-Nothing else leaves your PC; no audio is recorded - only the output loudness level is read. Use
-`-NoWeather` to turn all network requests off.
+Your location is used only to pick the weather and the US state holiday. It comes only from Windows Location,
+and only if you allow it; Speakling never looks up your location from your internet (IP) address. The US state
+is worked out on your PC from a built-in map, with no web lookup. Your location is kept in memory only and is
+never saved to disk. The only thing sent over the internet is your coordinates rounded to about 1 km, sent to
+Open-Meteo to get the weather. Nothing else leaves your PC; no audio is recorded - only the output loudness
+level is read. Use `-NoWeather` to turn off location and all network requests.
 
 ## Releases
-Downloads are distributed as zipped GitHub release assets (GitHub counts downloads per asset).
-_Release notes will go here. No release has been published yet._
+Downloads are zipped GitHub release assets on the [Releases](https://github.com/mikebeee/Speakling-for-Grok-Bot/releases)
+page (GitHub counts downloads per asset). What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 
 ## Contributing
 Issues and pull requests are welcome. Please keep the cozy rule: soft lighting, gentle movement, nothing
